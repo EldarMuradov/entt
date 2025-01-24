@@ -2,11 +2,10 @@ BasedOnStyle: llvm
 ---
 AccessModifierOffset: -4
 AlignEscapedNewlines: DontAlign
-AllowShortBlocksOnASingleLine: Always
+AllowShortBlocksOnASingleLine: Empty
 AllowShortEnumsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: WithoutElse
-AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
 AlwaysBreakTemplateDeclarations: Yes
 BreakBeforeBinaryOperators: NonAssignment
@@ -24,7 +23,6 @@ IncludeCategories:
     Priority: 4
   - Regex: '.*'
     Priority: 5
-IncludeIsMainRegex: "^$"
 IndentPPDirectives: AfterHash
 IndentWidth: 4
 KeepEmptyLinesAtTheStartOfBlocks: false

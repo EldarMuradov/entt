@@ -1,9 +1,18 @@
 #include <gtest/gtest.h>
-#include <entt/config/config.h>
 #include <entt/entity/component.hpp>
-#include "../../common/boxed_type.h"
-#include "../../common/empty.h"
-#include "../../common/non_movable.h"
+
+struct empty {};
+
+struct non_empty {
+    int value;
+};
+
+struct non_movable {
+    non_movable() = default;
+    non_movable(const non_movable &) = delete;
+    non_movable &operator=(const non_movable &) = delete;
+    int value;
+};
 
 struct self_contained {
     static constexpr auto in_place_delete = true;
@@ -20,43 +29,50 @@ struct entt::component_traits<traits_based> {
 };
 
 TEST(Component, VoidType) {
-    using traits_type = entt::component_traits<void>;
+    using traits = entt::component_traits<void>;
 
-    ASSERT_FALSE(traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, 0u);
+    static_assert(traits::in_place_delete);
+    static_assert(entt::ignore_as_empty_v<typename traits::type>);
+    // we don't really care about this thanks to ignore_as_empty_v
+    static_assert(traits::page_size != 0u);
 }
 
 TEST(Component, Empty) {
-    using traits_type = entt::component_traits<test::empty>;
+    using traits = entt::component_traits<empty>;
 
-    ASSERT_FALSE(traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, 0u);
+    static_assert(!traits::in_place_delete);
+    static_assert(entt::ignore_as_empty_v<typename traits::type>);
+    static_assert(traits::page_size == 0u);
 }
 
 TEST(Component, NonEmpty) {
-    using traits_type = entt::component_traits<test::boxed_int>;
+    using traits = entt::component_traits<non_empty>;
 
-    ASSERT_FALSE(traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, ENTT_PACKED_PAGE);
+    static_assert(!traits::in_place_delete);
+    static_assert(!entt::ignore_as_empty_v<typename traits::type>);
+    static_assert(traits::page_size == ENTT_PACKED_PAGE);
 }
 
 TEST(Component, NonMovable) {
-    using traits_type = entt::component_traits<test::non_movable>;
+    using traits = entt::component_traits<non_movable>;
 
-    ASSERT_TRUE(traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, ENTT_PACKED_PAGE);
+    static_assert(traits::in_place_delete);
+    static_assert(!entt::ignore_as_empty_v<typename traits::type>);
+    static_assert(traits::page_size == ENTT_PACKED_PAGE);
 }
 
 TEST(Component, SelfContained) {
-    using traits_type = entt::component_traits<self_contained>;
+    using traits = entt::component_traits<self_contained>;
 
-    ASSERT_TRUE(traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, 4u);
+    static_assert(traits::in_place_delete);
+    static_assert(!entt::ignore_as_empty_v<typename traits::type>);
+    static_assert(traits::page_size == 4u);
 }
 
 TEST(Component, TraitsBased) {
-    using traits_type = entt::component_traits<traits_based>;
+    using traits = entt::component_traits<traits_based>;
 
-    ASSERT_TRUE(!traits_type::in_place_delete);
-    ASSERT_EQ(traits_type::page_size, 8u);
+    static_assert(!traits::in_place_delete);
+    static_assert(!entt::ignore_as_empty_v<typename traits::type>);
+    static_assert(traits::page_size == 8u);
 }

@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <type_traits>
 #include <utility>
-#include "fwd.hpp"
 
 namespace entt {
 
@@ -110,8 +109,7 @@ class process {
         static_cast<Target *>(this)->aborted();
     }
 
-    template<typename... Args>
-    void next(Args &&...) const noexcept {}
+    void next(...) const noexcept {}
 
 protected:
     /**
@@ -166,29 +164,8 @@ public:
     /*! @brief Type used to provide elapsed time. */
     using delta_type = Delta;
 
-    /*! @brief Default constructor. */
-    constexpr process() = default;
-
-    /*! @brief Default copy constructor. */
-    process(const process &) = default;
-
-    /*! @brief Default move constructor. */
-    process(process &&) noexcept = default;
-
-    /**
-     * @brief Default copy assignment operator.
-     * @return This process.
-     */
-    process &operator=(const process &) = default;
-
-    /**
-     * @brief Default move assignment operator.
-     * @return This process.
-     */
-    process &operator=(process &&) noexcept = default;
-
     /*! @brief Default destructor. */
-    virtual ~process() {
+    virtual ~process() noexcept {
         static_assert(std::is_base_of_v<process, Derived>, "Incorrect use of the class template");
     }
 
@@ -198,13 +175,13 @@ public:
      * The function is idempotent and it does nothing if the process isn't
      * alive.
      *
-     * @param immediate Requests an immediate operation.
+     * @param immediately Requests an immediate operation.
      */
-    void abort(const bool immediate = false) {
+    void abort(const bool immediately = false) {
         if(alive()) {
             current = state::aborted;
 
-            if(immediate) {
+            if(immediately) {
                 tick({});
             }
         }

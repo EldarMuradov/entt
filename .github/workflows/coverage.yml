@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v2
     - name: Compile tests
       working-directory: build
       env:
-        CXXFLAGS: "--coverage -fno-elide-constructors -fno-inline -fno-default-inline"
+        CXXFLAGS: "--coverage -fno-inline"
         CXX: g++
       run: |
         cmake -DENTT_BUILD_TESTING=ON -DENTT_BUILD_LIB=ON -DENTT_BUILD_EXAMPLE=ON ..
@@ -22,7 +22,7 @@ jobs:
       working-directory: build
       env:
         CTEST_OUTPUT_ON_FAILURE: 1
-      run: ctest -C Debug -j4
+      run: ctest --timeout 30 -C Debug -j4
     - name: Collect data
       working-directory: build
       run: |
@@ -30,7 +30,7 @@ jobs:
         lcov -c -d . -o coverage.info
         lcov -l coverage.info
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: build/coverage.info

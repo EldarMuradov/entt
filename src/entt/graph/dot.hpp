@@ -3,7 +3,7 @@
 
 #include <ostream>
 #include <type_traits>
-#include "fwd.hpp"
+#include "adjacency_matrix.hpp"
 
 namespace entt {
 

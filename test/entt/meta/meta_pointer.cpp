@@ -2,19 +2,17 @@
 #include <type_traits>
 #include <utility>
 #include <gtest/gtest.h>
-#include <entt/meta/adl_pointer.hpp>
 #include <entt/meta/meta.hpp>
 #include <entt/meta/pointer.hpp>
 #include <entt/meta/resolve.hpp>
-#include <entt/meta/type_traits.hpp>
-#include "../../common/config.h"
+#include "../common/config.h"
 
 template<typename Type>
 struct wrapped_shared_ptr {
     wrapped_shared_ptr(Type init)
         : ptr{new Type{init}} {}
 
-    [[nodiscard]] Type &deref() const {
+    Type &deref() const {
         return *ptr;
     }
 
@@ -25,8 +23,8 @@ private:
 struct self_ptr {
     using element_type = self_ptr;
 
-    self_ptr(int val)
-        : value{val} {}
+    self_ptr(int v)
+        : value{v} {}
 
     const self_ptr &operator*() const {
         return *this;
@@ -38,8 +36,8 @@ struct self_ptr {
 struct proxy_ptr {
     using element_type = proxy_ptr;
 
-    proxy_ptr(int &val)
-        : value{&val} {}
+    proxy_ptr(int &v)
+        : value{&v} {}
 
     proxy_ptr operator*() const {
         return *this;
@@ -79,12 +77,20 @@ Type &dereference_meta_pointer_like(const adl_wrapped_shared_ptr<Type> &ptr) {
 }
 
 int test_function() {
-    return 3;
+    return 42;
 }
 
+struct not_copyable_t {
+    not_copyable_t() = default;
+    not_copyable_t(const not_copyable_t &) = delete;
+    not_copyable_t(not_copyable_t &&) = default;
+    not_copyable_t &operator=(const not_copyable_t &) = delete;
+    not_copyable_t &operator=(not_copyable_t &&) = default;
+};
+
 TEST(MetaPointerLike, DereferenceOperatorInvalidType) {
-    const int value = 0;
-    const entt::meta_any any{value};
+    int value = 0;
+    entt::meta_any any{value};
 
     ASSERT_FALSE(any.type().is_pointer());
     ASSERT_FALSE(any.type().is_pointer_like());
@@ -96,8 +102,8 @@ TEST(MetaPointerLike, DereferenceOperatorInvalidType) {
 }
 
 TEST(MetaPointerLike, DereferenceOperatorConstType) {
-    const int value = 3;
-    const entt::meta_any any{&value};
+    const int value = 42;
+    entt::meta_any any{&value};
 
     ASSERT_TRUE(any.type().is_pointer());
     ASSERT_TRUE(any.type().is_pointer_like());
@@ -112,12 +118,12 @@ TEST(MetaPointerLike, DereferenceOperatorConstType) {
 
     ASSERT_EQ(deref.try_cast<int>(), nullptr);
     ASSERT_EQ(deref.try_cast<const int>(), &value);
-    ASSERT_EQ(deref.cast<const int &>(), 3);
+    ASSERT_EQ(deref.cast<const int &>(), 42);
 }
 
 ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferenceOperatorConstType) {
-    const int value = 3;
-    const entt::meta_any any{&value};
+    const int value = 42;
+    entt::meta_any any{&value};
     auto deref = *any;
 
     ASSERT_TRUE(deref);
@@ -125,7 +131,7 @@ ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferenceOperatorConstType) {
 }
 
 TEST(MetaPointerLike, DereferenceOperatorConstAnyNonConstType) {
-    int value = 3;
+    int value = 42;
     const entt::meta_any any{&value};
     auto deref = *any;
 
@@ -136,12 +142,12 @@ TEST(MetaPointerLike, DereferenceOperatorConstAnyNonConstType) {
 
     ASSERT_NE(deref.try_cast<int>(), nullptr);
     ASSERT_NE(deref.try_cast<const int>(), nullptr);
-    ASSERT_EQ(deref.cast<int &>(), 3);
-    ASSERT_EQ(deref.cast<const int &>(), 3);
+    ASSERT_EQ(deref.cast<int &>(), 42);
+    ASSERT_EQ(deref.cast<const int &>(), 42);
 }
 
 TEST(MetaPointerLike, DereferenceOperatorConstAnyConstType) {
-    const int value = 3;
+    const int value = 42;
     const entt::meta_any any{&value};
     auto deref = *any;
 
@@ -152,11 +158,11 @@ TEST(MetaPointerLike, DereferenceOperatorConstAnyConstType) {
 
     ASSERT_EQ(deref.try_cast<int>(), nullptr);
     ASSERT_NE(deref.try_cast<const int>(), nullptr);
-    ASSERT_EQ(deref.cast<const int &>(), 3);
+    ASSERT_EQ(deref.cast<const int &>(), 42);
 }
 
 ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferenceOperatorConstAnyConstType) {
-    const int value = 3;
+    const int value = 42;
     const entt::meta_any any{&value};
     auto deref = *any;
 
@@ -179,10 +185,10 @@ TEST(MetaPointerLike, DereferenceOperatorRawPointer) {
     ASSERT_FALSE(deref.type().is_pointer_like());
     ASSERT_EQ(deref.type(), entt::resolve<int>());
 
-    deref.cast<int &>() = 3;
+    deref.cast<int &>() = 42;
 
-    ASSERT_EQ(*any.cast<int *>(), 3);
-    ASSERT_EQ(value, 3);
+    ASSERT_EQ(*any.cast<int *>(), 42);
+    ASSERT_EQ(value, 42);
 }
 
 TEST(MetaPointerLike, DereferenceOperatorSmartPointer) {
@@ -200,23 +206,23 @@ TEST(MetaPointerLike, DereferenceOperatorSmartPointer) {
     ASSERT_FALSE(deref.type().is_pointer_like());
     ASSERT_EQ(deref.type(), entt::resolve<int>());
 
-    deref.cast<int &>() = 3;
+    deref.cast<int &>() = 42;
 
-    ASSERT_EQ(*any.cast<std::shared_ptr<int>>(), 3);
-    ASSERT_EQ(*value, 3);
+    ASSERT_EQ(*any.cast<std::shared_ptr<int>>(), 42);
+    ASSERT_EQ(*value, 42);
 }
 
 TEST(MetaPointerLike, PointerToConstMoveOnlyType) {
-    const std::unique_ptr<int> instance;
-    const entt::meta_any any{&instance};
+    const not_copyable_t instance;
+    entt::meta_any any{&instance};
     auto deref = *any;
 
     ASSERT_TRUE(any);
     ASSERT_TRUE(deref);
 
-    ASSERT_EQ(deref.try_cast<std::unique_ptr<int>>(), nullptr);
-    ASSERT_NE(deref.try_cast<const std::unique_ptr<int>>(), nullptr);
-    ASSERT_EQ(&deref.cast<const std::unique_ptr<int> &>(), &instance);
+    ASSERT_EQ(deref.try_cast<not_copyable_t>(), nullptr);
+    ASSERT_NE(deref.try_cast<const not_copyable_t>(), nullptr);
+    ASSERT_EQ(&deref.cast<const not_copyable_t &>(), &instance);
 }
 
 TEST(MetaPointerLike, AsRef) {
@@ -235,14 +241,14 @@ TEST(MetaPointerLike, AsRef) {
     ASSERT_FALSE(deref.type().is_pointer_like());
     ASSERT_EQ(deref.type(), entt::resolve<int>());
 
-    deref.cast<int &>() = 3;
+    deref.cast<int &>() = 42;
 
-    ASSERT_EQ(*any.cast<int *>(), 3);
-    ASSERT_EQ(value, 3);
+    ASSERT_EQ(*any.cast<int *>(), 42);
+    ASSERT_EQ(value, 42);
 }
 
 TEST(MetaPointerLike, AsConstRef) {
-    int value = 3;
+    int value = 42;
     int *const ptr = &value;
     entt::meta_any any{entt::forward_as_meta(ptr)};
 
@@ -257,152 +263,110 @@ TEST(MetaPointerLike, AsConstRef) {
     ASSERT_FALSE(deref.type().is_pointer_like());
     ASSERT_EQ(deref.type(), entt::resolve<int>());
 
-    deref.cast<int &>() = 3;
+    deref.cast<int &>() = 42;
 
-    ASSERT_EQ(*any.cast<int *>(), 3);
-    ASSERT_EQ(value, 3);
+    ASSERT_EQ(*any.cast<int *>(), 42);
+    ASSERT_EQ(value, 42);
 }
 
-TEST(MetaPointerLike, DereferenceOverloadAdl) {
-    const entt::meta_any any{adl_wrapped_shared_ptr<int>{3}};
+TEST(MetaPointerLike, DereferenceOverload) {
+    auto test = [](entt::meta_any any) {
+        ASSERT_FALSE(any.type().is_pointer());
+        ASSERT_TRUE(any.type().is_pointer_like());
 
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
+        auto deref = *any;
 
-    auto deref = *any;
+        ASSERT_TRUE(deref);
+        ASSERT_FALSE(deref.type().is_pointer());
+        ASSERT_FALSE(deref.type().is_pointer_like());
+        ASSERT_EQ(deref.type(), entt::resolve<int>());
 
-    ASSERT_TRUE(deref);
-    ASSERT_FALSE(deref.type().is_pointer());
-    ASSERT_FALSE(deref.type().is_pointer_like());
-    ASSERT_EQ(deref.type(), entt::resolve<int>());
+        ASSERT_EQ(deref.cast<int &>(), 42);
+        ASSERT_EQ(deref.cast<const int &>(), 42);
+    };
 
-    ASSERT_EQ(deref.cast<int &>(), 3);
-    ASSERT_EQ(deref.cast<const int &>(), 3);
+    test(adl_wrapped_shared_ptr<int>{42});
+    test(spec_wrapped_shared_ptr<int>{42});
 }
 
-TEST(MetaPointerLike, DereferenceOverloadSpec) {
-    const entt::meta_any any{spec_wrapped_shared_ptr<int>{3}};
+TEST(MetaPointerLike, DereferencePointerToConstOverload) {
+    auto test = [](entt::meta_any any) {
+        ASSERT_FALSE(any.type().is_pointer());
+        ASSERT_TRUE(any.type().is_pointer_like());
 
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
+        auto deref = *any;
 
-    auto deref = *any;
+        ASSERT_TRUE(deref);
+        ASSERT_FALSE(deref.type().is_pointer());
+        ASSERT_FALSE(deref.type().is_pointer_like());
+        ASSERT_EQ(deref.type(), entt::resolve<int>());
+        ASSERT_EQ(deref.cast<const int &>(), 42);
+    };
 
-    ASSERT_TRUE(deref);
-    ASSERT_FALSE(deref.type().is_pointer());
-    ASSERT_FALSE(deref.type().is_pointer_like());
-    ASSERT_EQ(deref.type(), entt::resolve<int>());
-
-    ASSERT_EQ(deref.cast<int &>(), 3);
-    ASSERT_EQ(deref.cast<const int &>(), 3);
+    test(adl_wrapped_shared_ptr<const int>{42});
+    test(spec_wrapped_shared_ptr<const int>{42});
 }
 
-TEST(MetaPointerLike, DereferencePointerToConstOverloadAdl) {
-    const entt::meta_any any{adl_wrapped_shared_ptr<const int>{3}};
+ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferencePointerToConstOverload) {
+    auto test = [](entt::meta_any any) {
+        auto deref = *any;
 
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
+        ASSERT_TRUE(deref);
+        ASSERT_DEATH(deref.cast<int &>() = 42, "");
+    };
 
-    auto deref = *any;
-
-    ASSERT_TRUE(deref);
-    ASSERT_FALSE(deref.type().is_pointer());
-    ASSERT_FALSE(deref.type().is_pointer_like());
-    ASSERT_EQ(deref.type(), entt::resolve<int>());
-    ASSERT_EQ(deref.cast<const int &>(), 3);
-}
-
-TEST(MetaPointerLike, DereferencePointerToConstOverloadSpec) {
-    const entt::meta_any any{spec_wrapped_shared_ptr<const int>{3}};
-
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
-
-    auto deref = *any;
-
-    ASSERT_TRUE(deref);
-    ASSERT_FALSE(deref.type().is_pointer());
-    ASSERT_FALSE(deref.type().is_pointer_like());
-    ASSERT_EQ(deref.type(), entt::resolve<int>());
-    ASSERT_EQ(deref.cast<const int &>(), 3);
-}
-
-ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferencePointerToConstOverloadAdl) {
-    const entt::meta_any any{adl_wrapped_shared_ptr<const int>{3}};
-
-    auto deref = *any;
-
-    ASSERT_TRUE(deref);
-    ASSERT_DEATH(deref.cast<int &>() = 3, "");
-}
-
-ENTT_DEBUG_TEST(MetaPointerLikeDeathTest, DereferencePointerToConstOverloadSpec) {
-    const entt::meta_any any{spec_wrapped_shared_ptr<const int>{3}};
-
-    auto deref = *any;
-
-    ASSERT_TRUE(deref);
-    ASSERT_DEATH(deref.cast<int &>() = 3, "");
+    test(adl_wrapped_shared_ptr<const int>{42});
+    test(spec_wrapped_shared_ptr<const int>{42});
 }
 
 TEST(MetaPointerLike, DereferencePointerToVoid) {
-    const entt::meta_any any{static_cast<void *>(nullptr)};
+    auto test = [](entt::meta_any any) {
+        ASSERT_TRUE(any.type().is_pointer());
+        ASSERT_TRUE(any.type().is_pointer_like());
 
-    ASSERT_TRUE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
+        auto deref = *any;
 
-    auto deref = *any;
+        ASSERT_FALSE(deref);
+    };
 
-    ASSERT_FALSE(deref);
+    test(static_cast<void *>(nullptr));
+    test(static_cast<const void *>(nullptr));
 }
 
-TEST(MetaPointerLike, DereferencePointerToConstVoid) {
-    const entt::meta_any any{static_cast<const void *>(nullptr)};
+TEST(MetaPointerLike, DereferenceSmartPointerToVoid) {
+    auto test = [](entt::meta_any any) {
+        ASSERT_TRUE(any.type().is_class());
+        ASSERT_FALSE(any.type().is_pointer());
+        ASSERT_TRUE(any.type().is_pointer_like());
 
-    ASSERT_TRUE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
+        auto deref = *any;
 
-    auto deref = *any;
+        ASSERT_FALSE(deref);
+    };
 
-    ASSERT_FALSE(deref);
-}
-
-TEST(MetaPointerLike, DereferenceSharedPointerToVoid) {
-    const entt::meta_any any{std::shared_ptr<void>{}};
-
-    ASSERT_TRUE(any.type().is_class());
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
-
-    auto deref = *any;
-
-    ASSERT_FALSE(deref);
-}
-
-TEST(MetaPointerLike, DereferenceUniquePointerToVoid) {
-    const entt::meta_any any{std::unique_ptr<void, void (*)(void *)>{nullptr, nullptr}};
-
-    ASSERT_TRUE(any.type().is_class());
-    ASSERT_FALSE(any.type().is_pointer());
-    ASSERT_TRUE(any.type().is_pointer_like());
-
-    auto deref = *any;
-
-    ASSERT_FALSE(deref);
+    test(std::shared_ptr<void>{});
+    test(std::unique_ptr<void, void (*)(void *)>{nullptr, nullptr});
 }
 
 TEST(MetaPointerLike, DereferencePointerToFunction) {
-    entt::meta_any any{&test_function};
+    auto test = [](entt::meta_any any) {
+        ASSERT_TRUE(any.type().is_pointer());
+        ASSERT_TRUE(any.type().is_pointer_like());
+        ASSERT_NE(any.try_cast<int (*)()>(), nullptr);
+        ASSERT_EQ(any.cast<int (*)()>()(), 42);
+    };
 
-    ASSERT_TRUE(any.type().is_pointer());
-    ASSERT_TRUE((*std::as_const(any)).type().is_pointer_like());
-    ASSERT_NE((**any).try_cast<int (*)()>(), nullptr);
-    ASSERT_EQ((***std::as_const(any)).cast<int (*)()>()(), 3);
+    entt::meta_any func{&test_function};
+
+    test(func);
+    test(*func);
+    test(**func);
+    test(*std::as_const(func));
 }
 
 TEST(MetaPointerLike, DereferenceSelfPointer) {
-    self_ptr obj{3};
-    const entt::meta_any any{entt::forward_as_meta(obj)};
+    self_ptr obj{42};
+    entt::meta_any any{entt::forward_as_meta(obj)};
     entt::meta_any deref = *any;
 
     ASSERT_TRUE(deref);
@@ -413,8 +377,8 @@ TEST(MetaPointerLike, DereferenceSelfPointer) {
 
 TEST(MetaPointerLike, DereferenceProxyPointer) {
     int value = 3;
-    const proxy_ptr obj{value};
-    const entt::meta_any any{obj};
+    proxy_ptr obj{value};
+    entt::meta_any any{obj};
     entt::meta_any deref = *any;
 
     ASSERT_TRUE(deref);
@@ -422,43 +386,29 @@ TEST(MetaPointerLike, DereferenceProxyPointer) {
     ASSERT_EQ(*deref.cast<const proxy_ptr &>().value, value);
     ASSERT_TRUE(deref.try_cast<proxy_ptr>());
 
-    *deref.cast<proxy_ptr &>().value = 3;
+    *deref.cast<proxy_ptr &>().value = 42;
 
-    ASSERT_EQ(value, 3);
+    ASSERT_EQ(value, 42);
 }
 
 TEST(MetaPointerLike, DereferenceArray) {
-    // NOLINTBEGIN(*-avoid-c-arrays)
-    const entt::meta_any array{std::in_place_type<int[3]>};
-    const entt::meta_any array_of_array{std::in_place_type<int[3][3]>};
-    // NOLINTEND(*-avoid-c-arrays)
+    entt::meta_any array{std::in_place_type<int[3]>};
+    entt::meta_any array_of_array{std::in_place_type<int[3][3]>};
 
-    // NOLINTBEGIN(*-avoid-c-arrays)
     ASSERT_EQ(array.type(), entt::resolve<int[3]>());
     ASSERT_EQ(array_of_array.type(), entt::resolve<int[3][3]>());
-    // NOLINTEND(*-avoid-c-arrays)
 
     ASSERT_FALSE(*array);
     ASSERT_FALSE(*array_of_array);
 }
 
-TEST(MetaPointerLike, DereferencePlainNullPointer) {
-    const entt::meta_any any{static_cast<int *>(nullptr)};
+TEST(MetaPointerLike, DereferenceVerifiableNullPointerLike) {
+    auto test = [](entt::meta_any any) {
+        ASSERT_TRUE(any);
+        ASSERT_FALSE(*any);
+    };
 
-    ASSERT_TRUE(any);
-    ASSERT_FALSE(*any);
-}
-
-TEST(MetaPointerLike, DereferenceSharedNullPointer) {
-    const entt::meta_any any{std::shared_ptr<int>{}};
-
-    ASSERT_TRUE(any);
-    ASSERT_FALSE(*any);
-}
-
-TEST(MetaPointerLike, DereferenceUniqueNullPointer) {
-    const entt::meta_any any{std::unique_ptr<int>{}};
-
-    ASSERT_TRUE(any);
-    ASSERT_FALSE(*any);
+    test(entt::meta_any{static_cast<int *>(nullptr)});
+    test(entt::meta_any{std::shared_ptr<int>{}});
+    test(entt::meta_any{std::unique_ptr<int>{}});
 }

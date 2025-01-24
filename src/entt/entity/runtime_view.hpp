@@ -11,13 +11,16 @@
 
 namespace entt {
 
-/*! @cond TURN_OFF_DOXYGEN */
+/**
+ * @cond TURN_OFF_DOXYGEN
+ * Internal details not to be documented.
+ */
+
 namespace internal {
 
 template<typename Set>
 class runtime_view_iterator final {
     using iterator_type = typename Set::iterator;
-    using iterator_traits = std::iterator_traits<iterator_type>;
 
     [[nodiscard]] bool valid() const {
         return (!tombstone_check || *it != tombstone)
@@ -26,10 +29,10 @@ class runtime_view_iterator final {
     }
 
 public:
-    using value_type = typename iterator_traits::value_type;
-    using pointer = typename iterator_traits::pointer;
-    using reference = typename iterator_traits::reference;
-    using difference_type = typename iterator_traits::difference_type;
+    using difference_type = typename iterator_type::difference_type;
+    using value_type = typename iterator_type::value_type;
+    using pointer = typename iterator_type::pointer;
+    using reference = typename iterator_type::reference;
     using iterator_category = std::bidirectional_iterator_tag;
 
     constexpr runtime_view_iterator() noexcept
@@ -38,7 +41,6 @@ public:
           it{},
           tombstone_check{} {}
 
-    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     runtime_view_iterator(const std::vector<Set *> &cpools, const std::vector<Set *> &ignore, iterator_type curr) noexcept
         : pools{&cpools},
           filter{&ignore},
@@ -50,8 +52,7 @@ public:
     }
 
     runtime_view_iterator &operator++() {
-        ++it;
-        for(const auto last = (*pools)[0]->end(); it != last && !valid(); ++it) {}
+        while(++it != (*pools)[0]->end() && !valid()) {}
         return *this;
     }
 
@@ -61,8 +62,7 @@ public:
     }
 
     runtime_view_iterator &operator--() {
-        --it;
-        for(const auto first = (*pools)[0]->begin(); it != first && !valid(); --it) {}
+        while(--it != (*pools)[0]->begin() && !valid()) {}
         return *this;
     }
 
@@ -95,27 +95,47 @@ private:
 };
 
 } // namespace internal
-/*! @endcond */
+
+/**
+ * Internal details not to be documented.
+ * @endcond
+ */
 
 /**
  * @brief Generic runtime view.
  *
- * Runtime views iterate over those entities that are at least in the given
- * storage. During initialization, a runtime view looks at the number of
- * entities available for each element and uses the smallest set in order to get
- * a performance boost when iterating.
+ * Runtime views iterate over those entities that have at least all the given
+ * components in their bags. During initialization, a runtime view looks at the
+ * number of entities available for each component and picks up a reference to
+ * the smallest set of candidate entities in order to get a performance boost
+ * when iterate.<br/>
+ * Order of elements during iterations are highly dependent on the order of the
+ * underlying data structures. See sparse_set and its specializations for more
+ * details.
  *
  * @b Important
  *
  * Iterators aren't invalidated if:
  *
- * * New elements are added to the storage.
- * * The entity currently pointed is modified (for example, elements are added
- *   or removed from it).
+ * * New instances of the given components are created and assigned to entities.
+ * * The entity currently pointed is modified (as an example, if one of the
+ *   given components is removed from the entity to which the iterator points).
  * * The entity currently pointed is destroyed.
  *
- * In all other cases, modifying the storage iterated by the view in any way
- * invalidates all the iterators.
+ * In all the other cases, modifying the pools of the given components in any
+ * way invalidates all the iterators and using them results in undefined
+ * behavior.
+ *
+ * @note
+ * Views share references to the underlying data structures of the registry that
+ * generated them. Therefore any change to the entities and to the components
+ * made by means of the registry are immediately reflected by the views, unless
+ * a pool was missing when the view was built (in this case, the view won't
+ * have a valid reference and won't be updated accordingly).
+ *
+ * @warning
+ * Lifetime of a view must not overcome that of the registry that generated it.
+ * In any other case, attempting to use a view results in undefined behavior.
  *
  * @tparam Type Common base type.
  * @tparam Allocator Type of allocator used to manage memory and elements.
@@ -134,9 +154,9 @@ public:
     /*! @brief Unsigned integer type. */
     using size_type = std::size_t;
     /*! @brief Common type among all storage types. */
-    using common_type = Type;
+    using base_type = Type;
     /*! @brief Bidirectional iterator type. */
-    using iterator = internal::runtime_view_iterator<common_type>;
+    using iterator = internal::runtime_view_iterator<base_type>;
 
     /*! @brief Default constructor to use to create empty, invalid views. */
     basic_runtime_view() noexcept
@@ -163,7 +183,7 @@ public:
           filter{other.filter, allocator} {}
 
     /*! @brief Default move constructor. */
-    basic_runtime_view(basic_runtime_view &&) noexcept = default;
+    basic_runtime_view(basic_runtime_view &&) noexcept(std::is_nothrow_move_constructible_v<container_type>) = default;
 
     /**
      * @brief Allocator-extended move constructor.
@@ -174,26 +194,23 @@ public:
         : pools{std::move(other.pools), allocator},
           filter{std::move(other.filter), allocator} {}
 
-    /*! @brief Default destructor. */
-    ~basic_runtime_view() = default;
-
     /**
      * @brief Default copy assignment operator.
-     * @return This runtime view.
+     * @return This container.
      */
     basic_runtime_view &operator=(const basic_runtime_view &) = default;
 
     /**
      * @brief Default move assignment operator.
-     * @return This runtime view.
+     * @return This container.
      */
-    basic_runtime_view &operator=(basic_runtime_view &&) noexcept = default;
+    basic_runtime_view &operator=(basic_runtime_view &&) noexcept(std::is_nothrow_move_assignable_v<container_type>) = default;
 
     /**
      * @brief Exchanges the contents with those of a given view.
      * @param other View to exchange the content with.
      */
-    void swap(basic_runtime_view &other) noexcept {
+    void swap(basic_runtime_view &other) {
         using std::swap;
         swap(pools, other.pools);
         swap(filter, other.filter);
@@ -218,7 +235,7 @@ public:
      * @param base An opaque reference to a storage object.
      * @return This runtime view.
      */
-    basic_runtime_view &iterate(common_type &base) {
+    basic_runtime_view &iterate(base_type &base) {
         if(pools.empty() || !(base.size() < pools[0u]->size())) {
             pools.push_back(&base);
         } else {
@@ -233,7 +250,7 @@ public:
      * @param base An opaque reference to a storage object.
      * @return This runtime view.
      */
-    basic_runtime_view &exclude(common_type &base) {
+    basic_runtime_view &exclude(base_type &base) {
         filter.push_back(&base);
         return *this;
     }
@@ -248,11 +265,13 @@ public:
 
     /**
      * @brief Returns an iterator to the first entity that has the given
-     * elements.
+     * components.
      *
-     * If the view is empty, the returned iterator will be equal to `end()`.
+     * The returned iterator points to the first entity that has the given
+     * components. If the view is empty, the returned iterator will be equal to
+     * `end()`.
      *
-     * @return An iterator to the first entity that has the given elements.
+     * @return An iterator to the first entity that has the given components.
      */
     [[nodiscard]] iterator begin() const {
         return pools.empty() ? iterator{} : iterator{pools, filter, pools[0]->begin()};
@@ -260,20 +279,17 @@ public:
 
     /**
      * @brief Returns an iterator that is past the last entity that has the
-     * given elements.
+     * given components.
+     *
+     * The returned iterator points to the entity following the last entity that
+     * has the given components. Attempting to dereference the returned iterator
+     * results in undefined behavior.
+     *
      * @return An iterator to the entity following the last entity that has the
-     * given elements.
+     * given components.
      */
     [[nodiscard]] iterator end() const {
         return pools.empty() ? iterator{} : iterator{pools, filter, pools[0]->end()};
-    }
-
-    /**
-     * @brief Checks whether a view is initialized or not.
-     * @return True if the view is initialized, false otherwise.
-     */
-    [[nodiscard]] explicit operator bool() const noexcept {
-        return !(pools.empty() && filter.empty());
     }
 
     /**
@@ -291,7 +307,8 @@ public:
      * @brief Iterates entities and applies the given function object to them.
      *
      * The function object is invoked for each entity. It is provided only with
-     * the entity itself.<br/>
+     * the entity itself. To get the components, users can use the registry with
+     * which the view was built.<br/>
      * The signature of the function should be equivalent to the following:
      *
      * @code{.cpp}

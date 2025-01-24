@@ -1,18 +1,21 @@
 #include <cstddef>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <entt/core/iterator.hpp>
-#include "../../common/boxed_type.h"
+
+struct clazz {
+    int value{0};
+};
 
 TEST(InputIteratorPointer, Functionalities) {
-    entt::input_iterator_pointer ptr{test::boxed_int{0}};
+    clazz instance{};
+    entt::input_iterator_pointer ptr{std::move(instance)};
+    ptr->value = 42;
 
-    ASSERT_EQ(ptr->value, 0);
-
-    ptr->value = 2;
-
-    ASSERT_EQ(ptr->value, 2);
+    ASSERT_EQ(instance.value, 0);
+    ASSERT_EQ(ptr->value, 42);
     ASSERT_EQ(ptr->value, (*ptr).value);
     ASSERT_EQ(ptr.operator->(), &ptr.operator*());
 }
@@ -46,7 +49,7 @@ TEST(IterableAdaptor, Functionalities) {
     ASSERT_EQ(*++iterable.cbegin(), 2);
     ASSERT_EQ(++iterable.cbegin(), --iterable.end());
 
-    for(auto value: entt::iterable_adaptor<const int *, const void *>{vec.data(), &vec[1u]}) {
+    for(auto value: entt::iterable_adaptor<const int *, const void *>{vec.data(), vec.data() + 1u}) {
         ASSERT_EQ(value, 1);
     }
 }

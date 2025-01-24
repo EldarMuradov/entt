@@ -1,19 +1,18 @@
 #include <functional>
-#include <memory>
 #include <utility>
 #include <gtest/gtest.h>
 #include <entt/process/process.hpp>
 #include <entt/process/scheduler.hpp>
 
-struct foo_process: entt::process<foo_process, entt::scheduler::delta_type> {
+struct foo_process: entt::process<foo_process, int> {
     foo_process(std::function<void()> upd, std::function<void()> abort)
-        : on_update{std::move(upd)}, on_aborted{std::move(abort)} {}
+        : on_update{upd}, on_aborted{abort} {}
 
-    void update(delta_type, void *) const {
+    void update(delta_type, void *) {
         on_update();
     }
 
-    void aborted() const {
+    void aborted() {
         on_aborted();
     }
 
@@ -21,25 +20,33 @@ struct foo_process: entt::process<foo_process, entt::scheduler::delta_type> {
     std::function<void()> on_aborted;
 };
 
-struct succeeded_process: entt::process<succeeded_process, entt::scheduler::delta_type> {
-    void update(delta_type, void *data) {
-        ++static_cast<std::pair<int, int> *>(data)->first;
+struct succeeded_process: entt::process<succeeded_process, int> {
+    void update(delta_type, void *) {
+        ++invoked;
         succeed();
     }
+
+    static inline unsigned int invoked;
 };
 
-struct failed_process: entt::process<failed_process, entt::scheduler::delta_type> {
-    void update(delta_type, void *data) {
-        ++static_cast<std::pair<int, int> *>(data)->second;
+struct failed_process: entt::process<failed_process, int> {
+    void update(delta_type, void *) {
+        ++invoked;
         fail();
+    }
+
+    static inline unsigned int invoked;
+};
+
+struct Scheduler: ::testing::Test {
+    void SetUp() override {
+        succeeded_process::invoked = 0u;
+        failed_process::invoked = 0u;
     }
 };
 
-TEST(Scheduler, Functionalities) {
-    entt::scheduler scheduler{};
-    entt::scheduler other{std::move(scheduler)};
-
-    scheduler = std::move(other);
+TEST_F(Scheduler, Functionalities) {
+    entt::scheduler<int> scheduler{};
 
     bool updated = false;
     bool aborted = false;
@@ -69,61 +76,37 @@ TEST(Scheduler, Functionalities) {
     ASSERT_TRUE(scheduler.empty());
 }
 
-TEST(Scheduler, Swap) {
-    entt::scheduler scheduler{};
-    entt::scheduler other{};
-    int counter{};
+TEST_F(Scheduler, Then) {
+    entt::scheduler<int> scheduler;
 
-    scheduler.attach([&counter](auto &&...) { ++counter; });
-
-    ASSERT_EQ(scheduler.size(), 1u);
-    ASSERT_EQ(other.size(), 0u);
-    ASSERT_EQ(counter, 0);
-
-    scheduler.update({});
-
-    ASSERT_EQ(counter, 1);
-
-    scheduler.swap(other);
-    scheduler.update({});
-
-    ASSERT_EQ(scheduler.size(), 0u);
-    ASSERT_EQ(other.size(), 1u);
-    ASSERT_EQ(counter, 1);
-
-    other.update({});
-
-    ASSERT_EQ(counter, 2);
-}
-
-TEST(Scheduler, Then) {
-    entt::scheduler scheduler{};
-    std::pair<int, int> counter{};
-
-    scheduler
-        // failing process with successor
-        .attach<succeeded_process>()
+    // failing process with successor
+    scheduler.attach<succeeded_process>()
         .then<succeeded_process>()
         .then<failed_process>()
-        .then<succeeded_process>()
-        // failing process without successor
-        .attach<succeeded_process>()
-        .then<succeeded_process>()
-        .then<failed_process>()
-        // non-failing process
-        .attach<succeeded_process>()
         .then<succeeded_process>();
 
+    // failing process without successor
+    scheduler.attach<succeeded_process>()
+        .then<succeeded_process>()
+        .then<failed_process>();
+
+    // non-failing process
+    scheduler.attach<succeeded_process>()
+        .then<succeeded_process>();
+
+    ASSERT_EQ(succeeded_process::invoked, 0u);
+    ASSERT_EQ(failed_process::invoked, 0u);
+
     while(!scheduler.empty()) {
-        scheduler.update(0, &counter);
+        scheduler.update(0);
     }
 
-    ASSERT_EQ(counter.first, 6u);
-    ASSERT_EQ(counter.second, 2u);
+    ASSERT_EQ(succeeded_process::invoked, 6u);
+    ASSERT_EQ(failed_process::invoked, 2u);
 }
 
-TEST(Scheduler, Functor) {
-    entt::scheduler scheduler{};
+TEST_F(Scheduler, Functor) {
+    entt::scheduler<int> scheduler;
 
     bool first_functor = false;
     bool second_functor = false;
@@ -151,32 +134,21 @@ TEST(Scheduler, Functor) {
     ASSERT_TRUE(scheduler.empty());
 }
 
-TEST(Scheduler, SpawningProcess) {
-    entt::scheduler scheduler{};
-    std::pair<int, int> counter{};
+TEST_F(Scheduler, SpawningProcess) {
+    entt::scheduler<int> scheduler;
 
     scheduler.attach([&scheduler](auto, void *, auto resolve, auto) {
         scheduler.attach<succeeded_process>().then<failed_process>();
         resolve();
     });
 
+    ASSERT_EQ(succeeded_process::invoked, 0u);
+    ASSERT_EQ(failed_process::invoked, 0u);
+
     while(!scheduler.empty()) {
-        scheduler.update(0, &counter);
+        scheduler.update(0);
     }
 
-    ASSERT_EQ(counter.first, 1u);
-    ASSERT_EQ(counter.second, 1u);
-}
-
-TEST(Scheduler, CustomAllocator) {
-    const std::allocator<void> allocator{};
-    entt::scheduler scheduler{allocator};
-
-    ASSERT_EQ(scheduler.get_allocator(), allocator);
-    ASSERT_FALSE(scheduler.get_allocator() != allocator);
-
-    scheduler.attach([](auto &&...) {});
-    const decltype(scheduler) other{std::move(scheduler), allocator};
-
-    ASSERT_EQ(other.size(), 1u);
+    ASSERT_EQ(succeeded_process::invoked, 1u);
+    ASSERT_EQ(failed_process::invoked, 1u);
 }
